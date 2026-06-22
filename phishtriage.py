@@ -13,8 +13,8 @@ def extract_headers(msg):
         'From': msg['From'],
         'Reply-To': msg['Reply-To'],
         'Return-Path': msg['Return-Path'],
-
-        'Received': None,  # Will be filled with the first 'Received' header
+        'Received': msg.get_all('Received'),  # Get all Received headers
+        'Authentication-Results': msg.get_all('Authentication-Results'),
         
     }
     return headers
