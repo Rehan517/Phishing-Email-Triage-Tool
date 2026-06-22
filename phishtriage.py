@@ -1,5 +1,6 @@
 import email
 import re
+import hashlib
 from email import policy
 from email.parser import BytesParser
 from urllib.parse import urlparse  
@@ -63,12 +64,29 @@ def extract_iocs(msg):
             domains.add(domain)
     iocs["domains"] = list(domains)
 
+
+    # 4. Find attachments and fingerprint them (hash the bytes — never open the file).
+    for part in msg.walk():
+        filename = part.get_filename()
+        if filename:                              # has a filename => it's an attachment
+            payload = part.get_payload(decode=True)   # raw decoded bytes of the file
+            if payload is None:
+                continue                          # nothing to hash, skip safely
+
+            attachment = {
+                "filename": filename,
+                "md5": hashlib.md5(payload).hexdigest(),
+                "sha256": hashlib.sha256(payload).hexdigest(),
+                "size_bytes": len(payload),
+            }
+            iocs["attachments"].append(attachment)
+
     return iocs
 
 
 
 if __name__ == "__main__":
-    msg = load_email('samples/test2.eml')
+    msg = load_email('samples/test_attachment.eml')
     for k, v in extract_headers(msg).items():
         print(f"{k}: {v}")
 
@@ -79,3 +97,4 @@ if __name__ == "__main__":
 
     iocs = extract_iocs(msg)
     print(f"  Domains ({len(iocs['domains'])}): {iocs['domains']}")
+    print(f"  Attachments ({len(iocs['attachments'])}): {iocs['attachments']}")

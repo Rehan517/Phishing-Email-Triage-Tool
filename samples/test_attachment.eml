@@ -1,0 +1,21 @@
+From: test@example.com
+To: you@example.com
+Subject: Test email with attachment
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="===============3448820038962289473=="
+
+--===============3448820038962289473==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+This is a harmless test email for building the hashing feature.
+
+--===============3448820038962289473==
+Content-Type: application/octet-stream
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="test_attachment.txt"
+MIME-Version: 1.0
+
+aGVsbG8gd29ybGQsIHRoaXMgaXMgbm90IG1hbHdhcmU=
+
+--===============3448820038962289473==--
