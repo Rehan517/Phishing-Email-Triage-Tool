@@ -68,7 +68,7 @@ def extract_iocs(msg):
 
 
 if __name__ == "__main__":
-    msg = load_email('samples/test.eml')
+    msg = load_email('samples/test2.eml')
     for k, v in extract_headers(msg).items():
         print(f"{k}: {v}")
 
@@ -78,7 +78,4 @@ if __name__ == "__main__":
         print(f"  {k}: {v}")
 
     iocs = extract_iocs(msg)
-    number_of_urls = len(iocs['urls'])
-    # print("\nIOCs:")
-    # print(f"  URLs: {iocs['urls']}")
     print(f"  Domains ({len(iocs['domains'])}): {iocs['domains']}")
