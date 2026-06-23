@@ -81,12 +81,26 @@ def extract_iocs(msg):
             }
             iocs["attachments"].append(attachment)
 
+    iocs["urls_defanged"] = defang_list(iocs["urls"])
+    iocs["domains_defanged"] = defang_list(iocs["domains"])
+
     return iocs
+
+
+def defang(ioc):
+    """Neutralise an IOC string so it's readable but not clickable."""
+    ioc = ioc.replace("https://", "hxxps://")
+    ioc = ioc.replace("http://", "hxxp://")
+    ioc = ioc.replace(".", "[.]")
+    return ioc
+
+def defang_list(iocs):
+    return [defang(item) for item in iocs]
 
 
 
 if __name__ == "__main__":
-    msg = load_email('samples/test_attachment.eml')
+    msg = load_email('samples/test.eml')
     for k, v in extract_headers(msg).items():
         print(f"{k}: {v}")
 
@@ -96,5 +110,6 @@ if __name__ == "__main__":
         print(f"  {k}: {v}")
 
     iocs = extract_iocs(msg)
-    print(f"  Domains ({len(iocs['domains'])}): {iocs['domains']}")
+    print(f"  URLs ({len(iocs['urls'])}): {iocs['urls_defanged']}")
+    print(f"  Domains ({len(iocs['domains'])}): {iocs['domains_defanged']}")
     print(f"  Attachments ({len(iocs['attachments'])}): {iocs['attachments']}")
