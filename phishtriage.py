@@ -99,17 +99,91 @@ def defang_list(iocs):
 
 
 
+def score_email(auth, iocs):
+    """Turn findings into a risk score and a verdict. Offline-only (no external lookups)."""
+    risk = 0
+    notes = []                      # human-readable reasons, for the report
+    incomplete = False
+
+    # --- Authentication signals ---
+    if auth["dmarc"] == "fail":
+        risk += 3
+        notes.append("DMARC failed (strong spoofing signal)")
+    elif auth["dmarc"] is None:
+        incomplete = True
+        notes.append("DMARC result missing (could not fully assess)")
+
+
+    if auth["spf"] == "fail":
+        risk += 1
+        notes.append("SPF failed (weak spoofing signal)")
+    elif auth["spf"] is None:
+        incomplete = True
+        notes.append("SPF result missing (could not fully assess)")
+    
+
+    if auth["dkim"] == "fail":
+        risk += 1
+        notes.append("DKIM failed (weak spoofing signal)")
+    elif auth["dkim"] is None:
+        incomplete = True
+        notes.append("DKIM result missing (could not fully assess)")
+
+    # --- IOC signals ---
+    if iocs["attachments"]:                       # non-empty list is truthy
+        risk += 1
+        notes.append(f"{len(iocs['attachments'])} attachment(s) present")
+
+    # --- Map score to verdict ---
+    if risk >= 3:
+        verdict = "LIKELY MALICIOUS — ESCALATE"
+    elif risk == 0 and not incomplete:
+        verdict = "LIKELY BENIGN"
+    else:
+        verdict = "SUSPICIOUS — REVIEW"
+
+    return {"verdict": verdict, "risk": risk, "notes": notes, "incomplete": incomplete}
+
+
+def build_report(headers, auth, iocs, result):
+    """Assemble a clean, human-readable triage report as a single string."""
+    lines = []                                    # build up a list of lines, join at the end
+
+    lines.append("=" * 50)
+    lines.append("           PHISHTRIAGE REPORT")
+    lines.append("=" * 50)
+    lines.append(f"VERDICT: {result['verdict']}  (risk score: {result['risk']})")
+    lines.append("")                              # blank line for spacing
+    lines.append("Notes:")
+    for note in result['notes']:
+        lines.append(f"  - {note}")
+    lines.append("")                              # blank line for spacing
+    lines.append("HEADERS:")
+    for k, v in headers.items():
+        lines.append("")
+        lines.append(f"  {k}: {v}")
+    lines.append("")                              # blank line for spacing
+    lines.append("AUTHENTICATION RESULTS:")
+    for k, v in auth.items():
+        lines.append(f"  {k}: {v}")
+    lines.append("")                              # blank line for spacing
+    lines.append("IOCs:")
+    lines.append(f"  Domains: {iocs['domains_defanged']}")
+    lines.append(f"  URLs: {len(iocs['urls_defanged'])} found")
+    lines.append(f"  Attachments: {iocs['attachments']}")
+    lines.append("")                              # blank line for spacing
+
+
+    return "\n".join(lines)                        # one string, newline-separated
+
+
+
+
 if __name__ == "__main__":
     msg = load_email('samples/test.eml')
-    for k, v in extract_headers(msg).items():
-        print(f"{k}: {v}")
 
     auth_results = check_authentication(msg)
-    print("\nAuthentication Results:")
-    for k, v in auth_results.items():
-        print(f"  {k}: {v}")
-
     iocs = extract_iocs(msg)
-    print(f"  URLs ({len(iocs['urls'])}): {iocs['urls_defanged']}")
-    print(f"  Domains ({len(iocs['domains'])}): {iocs['domains_defanged']}")
-    print(f"  Attachments ({len(iocs['attachments'])}): {iocs['attachments']}")
+    result = score_email(auth_results, iocs)
+
+    print(build_report(extract_headers(msg), auth_results, iocs, result))
