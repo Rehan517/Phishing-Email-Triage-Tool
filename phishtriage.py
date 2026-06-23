@@ -3,6 +3,7 @@ import re
 import hashlib
 from email import policy
 from email.parser import BytesParser
+from email.utils import parseaddr 
 from urllib.parse import urlparse  
 
 def load_email(file_path):
@@ -99,35 +100,78 @@ def defang_list(iocs):
 
 
 
-def score_email(auth, iocs):
+def score_email(headers, auth, iocs):
     """Turn findings into a risk score and a verdict. Offline-only (no external lookups)."""
     risk = 0
     notes = []                      # human-readable reasons, for the report
     incomplete = False
+    BAD = {"fail", "softfail"}                    # authentication actively failed
+    UNKNOWN = {None, "none", "temperror", "permerror", "neutral"}  # couldn't determine result, or no policy in place
+
+
+    # --- From vs Return-Path domain alignment (fallback spoof check) ---
+    from_addr = parseaddr(headers.get("From") or "")[1]
+    rp_addr   = parseaddr(headers.get("Return-Path") or "")[1]
+
+    from_domain = extract_domain(headers.get("From"))
+    rp_domain   = extract_domain(headers.get("Return-Path"))
+
+    print(f"DEBUG from_addr={from_addr!r} from_domain={from_domain!r}")
+    print(f"DEBUG rp_addr={rp_addr!r}   rp_domain={rp_domain!r}")
+
+    dmarc_passed = (auth["dmarc"] == "pass")
+
+    if rp_domain is None:
+        risk += 2
+        notes.append("No valid Return-Path domain found (suspicious)")
+    elif from_domain and rp_domain and from_domain != rp_domain:
+        if not dmarc_passed:
+            risk += 2
+            notes.append(f"From domain '{from_domain}' and Return-Path domain '{rp_domain}' do not match (suspicious)")
+        else:
+            notes.append(f"From domain '{from_domain}' and Return-Path domain '{rp_domain}' do not match, but DMARC passed (alignment proven)")
+
 
     # --- Authentication signals ---
-    if auth["dmarc"] == "fail":
+    auth_passed = False     # did ANY method pass?
+    auth_failed = False     # did ANY method actively fail (BAD)?
+
+    if auth["dmarc"] in BAD:
         risk += 3
+        auth_failed = True
         notes.append("DMARC failed (strong spoofing signal)")
-    elif auth["dmarc"] is None:
+    elif auth["dmarc"] in UNKNOWN:
         incomplete = True
         notes.append("DMARC result missing (could not fully assess)")
+    else:                                  # it's "pass"
+        auth_passed = True
 
 
-    if auth["spf"] == "fail":
+    if auth["spf"] in BAD:
         risk += 1
+        auth_failed = True
         notes.append("SPF failed (weak spoofing signal)")
-    elif auth["spf"] is None:
+    elif auth["spf"] in UNKNOWN:
         incomplete = True
         notes.append("SPF result missing (could not fully assess)")
+    else:                                  # it's "pass"
+        auth_passed = True
     
 
-    if auth["dkim"] == "fail":
+    if auth["dkim"] in BAD:
         risk += 1
+        auth_failed = True
         notes.append("DKIM failed (weak spoofing signal)")
-    elif auth["dkim"] is None:
+    elif auth["dkim"] in UNKNOWN:
         incomplete = True
         notes.append("DKIM result missing (could not fully assess)")
+    else:                                  # it's "pass"
+        auth_passed = True
+
+    # If nothing passed and nothing actively failed, the email is fully unauthenticatable.
+    if not auth_passed and not auth_failed:
+        risk += 1
+        notes.append("No authentication method could be verified (SPF/DKIM/DMARC all inconclusive)")
 
     # --- IOC signals ---
     if iocs["attachments"]:                       # non-empty list is truthy
@@ -143,6 +187,19 @@ def score_email(auth, iocs):
         verdict = "SUSPICIOUS — REVIEW"
 
     return {"verdict": verdict, "risk": risk, "notes": notes, "incomplete": incomplete}
+
+
+def extract_domain(raw_value):
+    """Get the domain from a header value, tolerating malformed display names."""
+    if not raw_value:
+        return None
+    addr = parseaddr(raw_value)[1]            # try the clean way first
+    if "@" not in addr:                        # parseaddr choked (e.g. junk display name)
+        m = re.search(r'<([^<>@\s]+@[^<>@\s]+)>', raw_value)  # find <something@something>
+        addr = m.group(1) if m else ""
+    if "@" in addr:
+        return addr.split("@")[-1].lower()
+    return None
 
 
 def build_report(headers, auth, iocs, result):
@@ -194,10 +251,10 @@ def build_report(headers, auth, iocs, result):
 
 
 if __name__ == "__main__":
-    msg = load_email('samples/test.eml')
+    msg = load_email('samples/sample-1000.eml')
 
     auth_results = check_authentication(msg)
     iocs = extract_iocs(msg)
-    result = score_email(auth_results, iocs)
+    result = score_email(extract_headers(msg), auth_results, iocs)
 
     print(build_report(extract_headers(msg), auth_results, iocs, result))
