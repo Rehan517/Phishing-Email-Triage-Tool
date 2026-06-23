@@ -154,19 +154,33 @@ def build_report(headers, auth, iocs, result):
     lines.append("=" * 50)
     lines.append(f"VERDICT: {result['verdict']}  (risk score: {result['risk']})")
     lines.append("")                              # blank line for spacing
+
     lines.append("Notes:")
-    for note in result['notes']:
-        lines.append(f"  - {note}")
+    if result['notes']:
+        for note in result['notes']:
+            lines.append(f"  - {note}")
+    else:
+        lines.append("  - No risk signals detected")
     lines.append("")                              # blank line for spacing
+
+    skip_in_headers = {"Received", "Authentication-Results"}
     lines.append("HEADERS:")
     for k, v in headers.items():
-        lines.append("")
+        if k in skip_in_headers:
+            continue                      # skip noise / already-parsed-below
         lines.append(f"  {k}: {v}")
+
+    if headers.get("Received"): # count the number of Received headers to get hop count
+        lines.append(f'  Hops: {len(headers.get("Received", []))}')
+    else:
+        lines.append("  Hops: 0")  
     lines.append("")                              # blank line for spacing
+
     lines.append("AUTHENTICATION RESULTS:")
     for k, v in auth.items():
         lines.append(f"  {k}: {v}")
     lines.append("")                              # blank line for spacing
+
     lines.append("IOCs:")
     lines.append(f"  Domains: {iocs['domains_defanged']}")
     lines.append(f"  URLs: {len(iocs['urls_defanged'])} found")
