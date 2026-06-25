@@ -34,10 +34,11 @@ Phishing triage is one of the highest-volume tasks an L1 SOC analyst handles. Th
 
 ## Usage
 
-Edit the filename in **main**, then run python3 phishtriage.py
+Edit the filename in **main**, then run `python3 phishtriage.py`
 
 ## Example output
 
+```
 ==================================================
 PHISHTRIAGE REPORT
 ==================================================
@@ -62,6 +63,7 @@ IOCs:
 Domains: []
 URLs: 0 found
 Attachments: [{'filename': 'csWuYjyqO2IR.pdf', 'md5': 'f1b1ac7839d2b2a1e458b5d87c7b2ca2', 'sha256': 'cfc5fbc759dcc599c8329dd94f9364394c7b1e875d6ff515c7337e00fb1f30cf', 'size_bytes': 97566}]
+```
 
 ## Sample source & safety note
 
@@ -70,5 +72,5 @@ Phishing sample emails were downloaded from https://github.com/rf-peixoto/phishi
 ## Limitations & future work
 
 - Offline only: no live reputation lookups yet (planned: VirusTotal / AbuseIPDB / URLhaus enrichment using the attachment hashes and domains the tool already extracts).
-- Heuristic scoring — a simple, explainable points model, not ML.
+- Heuristic scoring: a simple, explainable points model, not ML.
 - Planned: a web UI for uploading emails.
