@@ -251,7 +251,7 @@ def build_report(headers, auth, iocs, result):
 
 
 if __name__ == "__main__":
-    msg = load_email('samples/sample-1000.eml')
+    msg = load_email('samples/test.eml')
 
     auth_results = check_authentication(msg)
     iocs = extract_iocs(msg)
